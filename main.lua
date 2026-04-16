@@ -50,8 +50,8 @@ function BookSyncer:startSync()
         text = "Syncing books… check log when done.",
         timeout = 3,
     })
-    -- Run detached so the UI stays responsive
-    os.execute("sh " .. SYNC_SCRIPT .. " > /dev/null 2>&1 &")
+    -- Run detached; redirect stderr to log so startup errors are visible
+    os.execute("sh " .. SYNC_SCRIPT .. " 2>>" .. LOG_FILE .. " &")
     logger.info("BookSyncer: sync started")
 end
 
