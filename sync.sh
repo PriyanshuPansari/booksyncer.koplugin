@@ -1,12 +1,11 @@
 #!/bin/sh
-# sync.sh — Upload new sideloaded books to Calibre server
-# Place this file (and the rest of the plugin) at:
-#   /mnt/onboard/.adds/koreader/plugins/booksyncer.koplugin/
+# sync.sh - Upload new sideloaded books to Calibre server
 
 SERVER="https://kobo.llmplays.com"
-TOKEN="e85d044a1093947d34d5467cb79a2454"   # matches KOBO_UPLOAD_TOKEN on server
+TOKEN="e85d044a1093947d34d5467cb79a2454"
 STATE_FILE="/mnt/onboard/.adds/koreader/booksyncer_uploaded.txt"
 LOG="/mnt/onboard/.adds/koreader/booksyncer.log"
+TMPLIST="/tmp/booksyncer_files.txt"
 
 # Rotate log if > 200 KB
 if [ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 204800 ]; then
@@ -15,18 +14,12 @@ fi
 
 echo "=== Sync started: $(date) ===" >> "$LOG"
 
-# Only look at files directly in /mnt/onboard (no subdirectories)
-find /mnt/onboard -maxdepth 1 -type f \
-    \( \
-        -name "*.epub" -o -name "*.pdf"  -o -name "*.mobi" \
-        -o -name "*.cbz"  -o -name "*.cbr"  -o -name "*.fb2" \
-        -o -name "*.djvu" -o -name "*.azw"  -o -name "*.azw3" \
-        -o -name "*.lit"  -o -name "*.lrf" \
-    \) \
-    2>/dev/null \
-| while IFS= read -r filepath; do
+# List ebook files directly in /mnt/onboard (no subdirs), write to temp file
+find /mnt/onboard -maxdepth 1 -type f \( -name "*.epub" -o -name "*.pdf" -o -name "*.mobi" -o -name "*.cbz" -o -name "*.cbr" -o -name "*.fb2" -o -name "*.djvu" -o -name "*.azw" -o -name "*.azw3" -o -name "*.lit" -o -name "*.lrf" \) > "$TMPLIST" 2>/dev/null
 
-    # Skip if already uploaded (track by path; good enough for sideloaded books)
+while IFS= read -r filepath; do
+
+    # Skip if already uploaded
     if grep -qF "$filepath" "$STATE_FILE" 2>/dev/null; then
         continue
     fi
@@ -34,7 +27,7 @@ find /mnt/onboard -maxdepth 1 -type f \
     filename=$(basename "$filepath")
     filesize=$(wc -c < "$filepath" 2>/dev/null || echo 0)
 
-    # Skip very small files (< 5 KB) — likely corrupt or placeholder
+    # Skip very small files (< 5 KB)
     if [ "$filesize" -lt 5120 ]; then
         echo "  SKIP (too small): $filename" >> "$LOG"
         continue
@@ -48,8 +41,7 @@ find /mnt/onboard -maxdepth 1 -type f \
         -X POST \
         -H "Authorization: Bearer $TOKEN" \
         -F "file=@${filepath};filename=${filename}" \
-        "${SERVER}/upload" \
-    )
+        "${SERVER}/upload")
 
     body=$(cat /tmp/booksyncer_resp.txt 2>/dev/null)
 
@@ -63,7 +55,7 @@ find /mnt/onboard -maxdepth 1 -type f \
             ;;
     esac
 
-done
+done < "$TMPLIST"
 
-rm -f /tmp/booksyncer_resp.txt
+rm -f "$TMPLIST" /tmp/booksyncer_resp.txt
 echo "=== Sync done: $(date) ===" >> "$LOG"
