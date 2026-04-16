@@ -96,7 +96,8 @@ local function upload_file(filepath, filename)
             sink   = ltn12.sink.table(resp),
         }
     end)
-    fh:close()
+    -- ltn12.source.file closes fh itself when exhausted; guard against double-close
+    pcall(function() fh:close() end)
 
     if not ok_req2 then
         return false, "request error: " .. tostring(result1)
